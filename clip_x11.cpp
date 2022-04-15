@@ -120,6 +120,7 @@ public:
       // If the CLIPBOARD_MANAGER atom is not 0, we assume that there
       // is a clipboard manager available were we can leave our data.
       xcb_atom_t x11_clipboard_manager = get_atom(CLIPBOARD_MANAGER);
+      printf("%s: clipboard_manger: %d\n", __func__, (int)x11_clipboard_manager);
       if (x11_clipboard_manager) {
         // We have to lock the m_lock mutex that will be used to wait
         // the m_cv condition in get_data_from_selection_owner().
@@ -923,16 +924,20 @@ private:
 
   void encode_data_on_demand(std::pair<const xcb_atom_t, buffer_ptr>& e) {
 #ifdef HAVE_PNG_H
+    printf("%s: e.first: %d, MIME_IMAGE_PNG: %d\n", __func__, (int)e.first, (int)get_atom(MIME_IMAGE_PNG));
     if (e.first == get_atom(MIME_IMAGE_PNG)) {
+      printf("%s: image is valid: %d\n", __func__, m_image.is_valid());
       assert(m_image.is_valid());
       if (!m_image.is_valid())
         return;
 
       std::vector<uint8_t> output;
+      printf("%s: Writing png\n", __func__);
       if (x11::write_png(m_image, output)) {
         e.second =
           std::make_shared<std::vector<uint8_t>>(
             std::move(output));
+        printf("%s: Finished writing png\n", __func__);
       }
       // else { TODO report png conversion errors }
     }
