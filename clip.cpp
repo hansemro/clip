@@ -73,6 +73,7 @@ format text_format()  { return 1; }
 format image_format() { return 2; }
 
 bool has(format f) {
+  printf("%s\n", __func__);
   lock l;
   if (l.locked())
     return l.is_convertible(f);
@@ -81,6 +82,7 @@ bool has(format f) {
 }
 
 bool clear() {
+  printf("%s\n", __func__);
   lock l;
   if (l.locked())
     return l.clear();
@@ -89,6 +91,7 @@ bool clear() {
 }
 
 bool set_text(const std::string& value) {
+  printf("%s(value: %s)\n", __func__, value);
   lock l;
   if (l.locked()) {
     l.clear();
@@ -99,6 +102,7 @@ bool set_text(const std::string& value) {
 }
 
 bool get_text(std::string& value) {
+  printf("%s\n", __func__);
   lock l;
   if (!l.locked())
     return false;
@@ -121,6 +125,7 @@ bool get_text(std::string& value) {
 }
 
 bool set_image(const image& img) {
+  printf("%s\n", __func__);
   lock l;
   if (l.locked()) {
     l.clear();
@@ -131,6 +136,7 @@ bool set_image(const image& img) {
 }
 
 bool get_image(image& img) {
+  printf("%s\n", __func__);
   lock l;
   if (!l.locked())
     return false;
@@ -143,6 +149,7 @@ bool get_image(image& img) {
 }
 
 bool get_image_spec(image_spec& spec) {
+  printf("%s\n", __func__);
   lock l;
   if (!l.locked())
     return false;
@@ -155,10 +162,12 @@ bool get_image_spec(image_spec& spec) {
 }
 
 void set_error_handler(error_handler handler) {
+  printf("%s\n", __func__);
   g_error_handler = handler;
 }
 
 error_handler get_error_handler() {
+  printf("%s\n", __func__);
   return g_error_handler;
 }
 

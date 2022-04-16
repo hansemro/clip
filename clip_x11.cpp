@@ -78,6 +78,7 @@ public:
     , m_connection(xcb_connect(nullptr, nullptr))
     , m_window(0)
     , m_incr_process(false) {
+    printf("%s\n");
     if (!m_connection)
       return;
 
@@ -113,6 +114,7 @@ public:
   }
 
   ~Manager() {
+    printf("%s\n", __func__);
 #ifdef CLIP_SUPPORT_SAVE_TARGETS
     if (!m_data.empty() &&
         m_window &&
@@ -151,6 +153,7 @@ public:
 
   bool try_lock() {
     bool res = m_lock.try_lock();
+    printf("%s\n", __func__);
     if (!res) {
       // TODO make this configurable (the same for Windows retries)
       for (int i=0; i<5 && !res; ++i) {
@@ -205,6 +208,7 @@ public:
   bool is_convertible(format f) const {
     const atoms atoms = get_format_atoms(f);
     const xcb_window_t owner = get_x11_selection_owner();
+    printf("%s: format: %d\n", __func__, (int)f);
 
     // If we are the owner, we just can check the m_data map
     if (owner == m_window) {
@@ -243,6 +247,7 @@ public:
   }
 
   bool set_data(format f, const char* buf, size_t len) {
+    printf("%s(format: %d, buf @ %p: %s (0x%x), len: %d)\n", __func__, (int)f, buf, buf, buf, len);
     if (!set_x11_selection_owner())
       return false;
 
@@ -254,8 +259,10 @@ public:
     std::copy(buf,
               buf+len,
               shared_data_buf->begin());
-    for (xcb_atom_t atom : atoms)
+    for (xcb_atom_t atom : atoms) {
+      printf("%s: atom: %s (%d)\n", __func__, get_atom_name(atom), (int)atom);
       m_data[atom] = shared_data_buf;
+    }
 
     return true;
   }
@@ -263,6 +270,7 @@ public:
   bool get_data(format f, char* buf, size_t len) const {
     const atoms atoms = get_format_atoms(f);
     const xcb_window_t owner = get_x11_selection_owner();
+    printf("%s(format: %d, buf @ %p: %s (0x%x), len: %d)\n", __func__, (int)f, buf, buf, buf, len);
     if (owner == m_window) {
       for (xcb_atom_t atom : atoms) {
         auto it = m_data.find(atom);
@@ -308,6 +316,7 @@ public:
     size_t len = 0;
     const atoms atoms = get_format_atoms(f);
     const xcb_window_t owner = get_x11_selection_owner();
+    printf("%s\n", __func__);
     if (owner == m_window) {
       for (xcb_atom_t atom : atoms) {
         auto it = m_data.find(atom);
@@ -335,15 +344,27 @@ public:
   }
 
   bool set_image(const image& image) {
-    if (!set_x11_selection_owner())
+    printf("%s\n", __func__);
+    if (!set_x11_selection_owner()) {
+      printf("%s: set_x11_selection_owner failed\n", __func__);
       return false;
+    }
 
     m_image = image;
+    printf("%s: image @ %p\n", __func__, image);
 
 #ifdef HAVE_PNG_H
+    printf("%s: HAVE_PNG_H\n", __func__);
+    if (!set_x11_selection_owner())
+      printf("%s: !set_x11_selection_owner\n", __func__);
     // Put a nullptr in the m_data for image/png format and then we'll
     // encode the png data when the image is requested in this format.
+    printf("%s: prev m_data[get_atom(MIME_IMAGE_PNG)]: %p\n", __func__, m_data[get_atom(MIME_IMAGE_PNG)]);
     m_data[get_atom(MIME_IMAGE_PNG)] = buffer_ptr();
+    printf("%s: MIME_IMAGE_PNG: %d\n", __func__, (int)get_atom(MIME_IMAGE_PNG));
+    printf("%s: m_data @ %p\n", __func__, m_data);
+    printf("%s: buffer_ptr @ %p\n", __func__, buffer_ptr());
+    printf("%s: curr m_data[get_atom(MIME_IMAGE_PNG)]: %p\n", __func__, m_data[get_atom(MIME_IMAGE_PNG)]);
 #endif
 
     return true;
@@ -351,6 +372,7 @@ public:
 
   bool get_image(image& output_img) const {
     const xcb_window_t owner = get_x11_selection_owner();
+    printf("%s\n", __func__);
     if (owner == m_window) {
       if (m_image.is_valid()) {
         output_img = m_image;
@@ -374,6 +396,7 @@ public:
 
   bool get_image_spec(image_spec& spec) const {
     const xcb_window_t owner = get_x11_selection_owner();
+    printf("%s\n", __func__);
     if (owner == m_window) {
       if (m_image.is_valid()) {
         spec = m_image.spec();
@@ -398,6 +421,7 @@ public:
   format register_format(const std::string& name) {
     xcb_atom_t atom = get_atom(name.c_str());
     m_custom_formats.push_back(atom);
+    printf("%s\n", __func__);
     return (format)(m_custom_formats.size()-1) + kBaseForCustomFormats;
   }
 
@@ -406,8 +430,15 @@ private:
   void process_x11_events() {
     bool stop = false;
     xcb_generic_event_t* event;
+    printf("%s\n", __func__);
+    printf("%s: XCB_DESTROY_NOTIFY: %d\n", __func__, XCB_DESTROY_NOTIFY);
+    printf("%s: XCB_SELECTION_CLEAR: %d\n", __func__, XCB_SELECTION_CLEAR);
+    printf("%s: XCB_SELECTION_REQUEST: %d\n", __func__, XCB_SELECTION_REQUEST);
+    printf("%s: XCB_SELECTION_NOTIFY: %d\n", __func__, XCB_SELECTION_NOTIFY);
+    printf("%s: XCB_PROPERTY_NOTIFY: %d\n", __func__, XCB_PROPERTY_NOTIFY);
     while (!stop && (event = xcb_wait_for_event(m_connection))) {
       int type = (event->response_type & ~0x80);
+      printf("%s: type: %d\n", __func__, type);
 
       switch (type) {
 
@@ -448,6 +479,7 @@ private:
   }
 
   void handle_selection_clear_event(xcb_selection_clear_event_t* event) {
+    printf("%s\n", __func__);
     if (event->selection == get_atom(CLIPBOARD)) {
       std::lock_guard<std::mutex> lock(m_mutex);
       clear_data(); // Clear our clipboard data
@@ -455,6 +487,7 @@ private:
   }
 
   void handle_selection_request_event(xcb_selection_request_event_t* event) {
+    printf("%s\n", __func__);
     std::lock_guard<std::mutex> lock(m_mutex);
 
     if (event->target == get_atom(TARGETS)) {
@@ -545,6 +578,7 @@ private:
   bool set_requestor_property_with_clipboard_content(const xcb_atom_t requestor,
                                                      const xcb_atom_t property,
                                                      const xcb_atom_t target) {
+    printf("%s\n", __func__);
     auto it = m_data.find(target);
     if (it == m_data.end()) {
       // Nothing to do (unsupported target)
@@ -577,6 +611,7 @@ private:
   }
 
   void handle_selection_notify_event(xcb_selection_notify_event_t* event) {
+    printf("%s\n", __func__);
     assert(event->requestor == m_window);
 
     if (event->target == get_atom(TARGETS))
@@ -623,6 +658,7 @@ private:
   }
 
   void handle_property_notify_event(xcb_property_notify_event_t* event) {
+    printf("%s\n", __func__);
     if (m_incr_process &&
         event->state == XCB_PROPERTY_NEW_VALUE &&
         event->atom == get_atom(CLIPBOARD)) {
@@ -653,6 +689,7 @@ private:
                                                     xcb_atom_t property,
                                                     xcb_atom_t atom,
                                                     bool delete_prop = true) {
+    printf("%s\n", __func__);
     xcb_get_property_cookie_t cookie =
       xcb_get_property(m_connection,
                        delete_prop,
@@ -674,6 +711,7 @@ private:
   // Concatenates the new data received in "reply" into "m_reply_data"
   // buffer.
   void copy_reply_data(xcb_get_property_reply_t* reply) {
+    printf("%s\n", __func__);
     const uint8_t* src = (const uint8_t*)xcb_get_property_value(reply);
     // n = length of "src" in bytes
     size_t n = xcb_get_property_value_length(reply);
@@ -695,6 +733,7 @@ private:
   // Calls the current m_callback() to handle the clipboard content
   // received from the owner.
   void call_callback(xcb_get_property_reply_t* reply) {
+    printf("%s\n", __func__);
     m_callback_result = false;
     if (m_callback)
       m_callback_result = m_callback();
@@ -707,6 +746,7 @@ private:
   bool get_data_from_selection_owner(const atoms& atoms,
                                      const notify_callback&& callback,
                                      xcb_atom_t selection = 0) const {
+    printf("%s\n", __func__);
     if (!selection)
       selection = get_atom(CLIPBOARD);
 
@@ -721,6 +761,7 @@ private:
     // Ask to the selection owner for its content on each known
     // text format/atom.
     for (xcb_atom_t atom : atoms) {
+      printf("%s: atom: %s (%d)\n", __func__, get_atom_name(atom), (int)atom);
       xcb_convert_selection(m_connection,
                             m_window, // Send us the result
                             selection, // Clipboard selection
@@ -755,6 +796,7 @@ private:
 
   atoms get_atoms(const char** names,
                   const int n) const {
+    printf("%s(n: %d)\n", __func__, n);
     atoms result(n, 0);
     std::vector<xcb_intern_atom_cookie_t> cookies(n);
 
@@ -785,6 +827,7 @@ private:
   }
 
   xcb_atom_t get_atom(const char* name) const {
+    printf("%s(name: %s)\n", __func__, name);
     auto it = m_atoms.find(name);
     if (it != m_atoms.end())
       return it->second;
@@ -806,6 +849,7 @@ private:
   }
 
   xcb_atom_t get_atom(CommonAtom i) const {
+    printf("%s(i: %d)\n", __func__, (int)i);
     if (m_common_atoms.empty()) {
       m_common_atoms =
         get_atoms(kCommonAtomNames,
@@ -815,6 +859,7 @@ private:
   }
 
   const atoms& get_text_format_atoms() const {
+    printf("%s\n", __func__);
     if (m_text_atoms.empty()) {
       const char* names[] = {
         // Prefer utf-8 formats first
@@ -833,6 +878,7 @@ private:
   }
 
   const atoms& get_image_format_atoms() const {
+    printf("%s\n", __func__);
     if (m_image_atoms.empty()) {
 #ifdef HAVE_PNG_H
       m_image_atoms.push_back(get_atom(MIME_IMAGE_PNG));
@@ -842,6 +888,7 @@ private:
   }
 
   atoms get_format_atoms(const format f) const {
+    printf("%s\n", __func__);
     atoms atoms;
     if (f == text_format()) {
       atoms = get_text_format_atoms();
@@ -884,6 +931,7 @@ private:
 #endif
 
   bool set_x11_selection_owner() const {
+    printf("%s\n", __func__);
     xcb_void_cookie_t cookie =
       xcb_set_selection_owner_checked(m_connection,
                                       m_window,
@@ -900,6 +948,7 @@ private:
   }
 
   xcb_window_t get_x11_selection_owner() const {
+    printf("%s\n", __func__);
     xcb_window_t result = 0;
     xcb_get_selection_owner_cookie_t cookie =
       xcb_get_selection_owner(m_connection,
@@ -915,6 +964,7 @@ private:
   }
 
   xcb_atom_t get_format_atom(const format f) const {
+    printf("%s\n", __func__);
     int i = f - kBaseForCustomFormats;
     if (i >= 0 && i < int(m_custom_formats.size()))
       return m_custom_formats[i];
@@ -923,6 +973,7 @@ private:
   }
 
   void encode_data_on_demand(std::pair<const xcb_atom_t, buffer_ptr>& e) {
+    printf("%s\n");
 #ifdef HAVE_PNG_H
     printf("%s: e.first: %d, MIME_IMAGE_PNG: %d\n", __func__, (int)e.first, (int)get_atom(MIME_IMAGE_PNG));
     if (e.first == get_atom(MIME_IMAGE_PNG)) {
@@ -1034,6 +1085,7 @@ private:
 Manager* manager = nullptr;
 
 void delete_manager_atexit() {
+  printf("%s\n", __func__);
   if (manager) {
     delete manager;
     manager = nullptr;
@@ -1041,6 +1093,7 @@ void delete_manager_atexit() {
 }
 
 Manager* get_manager() {
+  printf("%s\n", __func__);
   if (!manager) {
     manager = new Manager;
     std::atexit(delete_manager_atexit);
@@ -1081,6 +1134,7 @@ size_t lock::impl::get_data_length(format f) const {
 }
 
 bool lock::impl::set_image(const image& image) {
+  printf("%s\n", __func__);
   return manager->set_image(image);
 }
 
